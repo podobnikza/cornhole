@@ -16,7 +16,7 @@ function render(data){
  current={...data,...Cornhole.evaluate(data)};
  const courtWord=Number(data.courts)%100===1?'igrišče':Number(data.courts)%100===2?'igrišči':[3,4].includes(Number(data.courts)%100)?'igrišča':'igrišč';
  $('subtitle').textContent=`${data.title||'Cornhole turnir'} · posamezno · ${data.mode==='izpadanje'?'izpadanje':'vsak z vsakim'} · ${data.courts} ${courtWord}`;
- $('connection').textContent=data.demo?'PREDSTAVITVENI PODATKI':data.local?'LOKALNI PREIZKUS':'POVEZANO S PREGLEDNICO';
+ $('connection').textContent=data.snapshot?'POSNETEK VAŠIH REZULTATOV':data.demo?'PREDSTAVITVENI PODATKI':data.local?'LOKALNI PREIZKUS':'POVEZANO S PREGLEDNICO';
  const ranked=current.players,finished=current.matches.filter(m=>m.done&&!m.bye),total=current.matches.filter(m=>!m.bye).length;
  const pending=current.matches.filter(m=>!m.done),slot=pending.length?Math.min(...pending.map(m=>Number(m.slot))):null;
  const leaders=finished.length?ranked.filter(p=>p.rank<=3):[];
@@ -24,21 +24,27 @@ function render(data){
  $('podium').innerHTML=places.map(rank=>{const group=leaders.filter(p=>p.rank===rank),p=group[0];return `<article><span class="place">${['','🥇','🥈','🥉'][rank]} ${rank}. mesto${group.length>1?' · deljeno':''}</span><h2>${escapeHtml(group.map(p=>p.name).join(', '))}</h2><p><b>${p.wins}</b> zmag &nbsp; / &nbsp; <b>${p.points}</b> točk</p></article>`;}).join('');
  const best=key=>{const max=Math.max(0,...ranked.map(p=>p[key]));return {max,names:max?ranked.filter(p=>p[key]===max).map(p=>p.name).join(', '):'Še brez rezultatov'};};
  const wins=best('wins'),points=best('points');
- const stats=[['Odigrane tekme',`${finished.length} / ${total}`,`${ranked.length} igralcev`],['Največ zmag',wins.max,wins.names],['Največ točk',points.max,points.names],['Naslednji termin',slot===null?'Zaključeno':slot,slot===null?'Vse tekme odigrane':'Dokončajte prejšnji termin pred naslednjim']];
+ const upcoming=pending.find(m=>Number(m.slot)===slot);
+ const stats=[['Odigrane tekme',`${finished.length} / ${total}`,`${ranked.length} igralcev`],['Največ zmag',wins.max,wins.names],['Največ točk',points.max,points.names],['Naslednji termin',slot===null?'Zaključeno':upcoming.week?'T'+Number(upcoming.week)+' · '+String(upcoming.slotLabel).split(' ')[0]:slot,slot===null?'Vse tekme odigrane':upcoming.week?'Teden '+Number(upcoming.week)+' · '+upcoming.slotLabel:'Dokončajte prejšnji termin pred naslednjim']];
  $('stats').innerHTML=stats.map(([label,value,note])=>`<div class="stat"><small>${label}</small><strong>${value}</strong><span>${escapeHtml(note)}</span></div>`).join('');
  $('rankRows').innerHTML=ranked.map(p=>`<tr><td>${p.rank}.</td><td><b>${escapeHtml(p.name)}</b></td><td>${p.played}</td><td>${p.wins}</td><td>${p.losses}</td><td>${p.points}</td><td>${p.against}</td></tr>`).join('');
- let notice=data.demo?'Prikaz uporablja izmišljene rezultate. Za svoj turnir odprite Nastavitve.':data.local?'Lokalni preizkus brez povezave s preglednico. Rezultati se ne delijo med napravami.':'';
+ let notice=data.snapshot?'Prikaz poslanega razporeda in rezultatov. Za samodejno osveževanje povežite obstoječo preglednico v Nastavitvah.':data.demo?'Prikaz uporablja izmišljene rezultate. Za svoj turnir odprite Nastavitve.':data.local?'Lokalni preizkus brez povezave s preglednico. Rezultati se ne delijo med napravami.':'';
  if(data.mode==='izpadanje'){const last=current.matches[current.matches.length-1];notice+=' Pri izpadanju je lestvica statistična; prvaka določa finale.';if(last&&last.done&&!last.bye)notice+=` Prvak: ${Number(last.sa)>Number(last.sb)?last.a:last.b}.`;}
  if(current.invalid)notice+=` Opozorilo: ${current.invalid} tekem ima nepopoln ali neveljaven rezultat in ne šteje v lestvico.`;
  $('notice').textContent=notice;
- $('upNext').innerHTML=slot===null?'':`<h2>Na vrsti · termin ${slot}</h2><div class="nextGrid">`+pending.filter(m=>Number(m.slot)===slot).map(m=>`<article><small>IGRIŠČE ${Number(m.court)} · TEKMA #${Number(m.id)}</small><p>${escapeHtml(m.a)} <span>proti</span> ${escapeHtml(m.b)}</p></article>`).join('')+'</div>';
+ const next=pending.filter(m=>Number(m.slot)===slot),first=next[0];
+ $('upNext').innerHTML=slot===null?'':`<h2>Naslednje neodigrane · ${first.week?'teden '+Number(first.week)+' · ':''}${escapeHtml(first.slotLabel||'termin '+slot)}</h2><div class="nextGrid">`+next.map(m=>`<article><small>IGRIŠČE ${Number(m.court)} · ${m.week?'VRSTICA':'TEKMA'} #${Number(m.id)}</small><p>${escapeHtml(m.a)} <span>proti</span> ${escapeHtml(m.b)}</p></article>`).join('')+'</div>';
+ const selectedWeek=$('weekFilter').value,weeks=[...new Set(current.matches.map(m=>m.week).filter(Boolean))].sort((a,b)=>a-b);
+ $('weekFilter').innerHTML='<option value="all">Vsi tedni</option>'+weeks.map(w=>`<option value="${w}">Teden ${w}</option>`).join('');
+ if(weeks.includes(Number(selectedWeek)))$('weekFilter').value=selectedWeek;
  renderMatches();
 }
 function renderMatches(){
- if(!current)return;const filter=$('filter').value;let round=null;
- $('matchRows').innerHTML=current.matches.filter(m=>filter==='all'||(filter==='done'?m.done:!m.done)).map(m=>{
- const heading=round!==m.round?`<h3 class="roundTitle">${current.mode==='izpadanje'?'Izločilni krog':'Krog'} ${Number(m.round)}</h3>`:'';round=m.round;
- return heading+`<div class="match"><small>#${Number(m.id)} · termin ${Number(m.slot)}<br>Igrišče ${Number(m.court)}</small><span>${escapeHtml(m.a)}</span><span class="score">${m.bye?'→':m.done?`${Number(m.sa)} : ${Number(m.sb)}`:'— : —'}</span><span>${escapeHtml(m.b)}${m.error?`<br><small>${escapeHtml(m.error)}</small>`:''}</span></div>`;
+ if(!current)return;const filter=$('filter').value,week=$('weekFilter').value;let round=null;
+ $('matchRows').innerHTML=current.matches.filter(m=>(week==='all'||Number(m.week)===Number(week))&&(filter==='all'||(filter==='done'?m.done:!m.done))).map(m=>{
+ const group=m.week?'w'+m.week:m.round;
+ const heading=round!==group?`<h3 class="roundTitle">${m.week?'Teden '+Number(m.week):(current.mode==='izpadanje'?'Izločilni krog ':'Krog ')+Number(m.round)}</h3>`:'';round=group;
+ return heading+`<div class="match"><small>${escapeHtml(m.slotLabel||'Termin '+Number(m.slot))}<br>Igrišče ${Number(m.court)}${m.week?'<br>RR '+Number(m.round)+' · cikel '+Number(m.cycle):''}</small><span>${escapeHtml(m.a)}</span><span class="score">${m.bye?'→':m.done?`${Number(m.sa)} : ${Number(m.sb)}`:'— : —'}</span><span>${escapeHtml(m.b)}${m.error?`<br><small>${escapeHtml(m.error)}</small>`:''}</span></div>`;
  }).join('')||'<p class="muted">Ni tekem za izbrani filter.</p>';
 }
 function validEndpoint(url){const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='script.google.com'||!/^\/macros\/s\/[^/]+\/exec$/.test(u.pathname))throw Error('Vnesite naslov Google Apps Script aplikacije, ki se konča z /exec.');return u.href;}
@@ -54,7 +60,8 @@ $('demo').onclick=()=>{endpoint='';try{localStorage.removeItem('cornhole-endpoin
 $('generate').onclick=()=>{try{const players=$('names').value.split('\n').map(s=>s.trim()).filter(Boolean),courts=Number($('courts').value),mode=$('mode').value;const matches=Cornhole.schedule(players,courts,mode);endpoint='';render({title:'Preizkus razporeda',players,courts,mode,matches,local:true});$('updated').textContent='Lokalni preizkus';$('settingsMessage').textContent=`Ustvarjeno: ${matches.length} tekem oziroma prostih prehodov. Za vnos rezultatov uporabite preglednico.`;}catch(e){$('settingsMessage').textContent=e.message;}};
 $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});};
 $('filter').onchange=renderMatches;
+$('weekFilter').onchange=renderMatches;
 document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button));$('ranking').hidden=button.dataset.tab!=='ranking';$('matches').hidden=button.dataset.tab!=='matches';});
 $('names').value=example().players.join('\n');
-if(endpoint){$('connection').textContent='POVEZOVANJE …';refresh();}else render(example());
+if(endpoint){$('connection').textContent='POVEZOVANJE …';refresh();}else render(window.CornholeSnapshot||example());
 setInterval(refresh,15000);
