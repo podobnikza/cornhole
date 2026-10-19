@@ -33,7 +33,7 @@ function render(data){
  if(current.invalid)notice+=` Opozorilo: ${current.invalid} tekem ima nepopoln ali neveljaven rezultat in ne šteje v lestvico.`;
  $('notice').textContent=notice;
  const next=pending.filter(m=>Number(m.slot)===slot),first=next[0];
- $('upNext').innerHTML=slot===null?'':`<h2>Naslednje neodigrane · ${first.week?'teden '+Number(first.week)+' · ':''}${escapeHtml(first.slotLabel||'termin '+slot)}</h2><div class="nextGrid">`+next.map(m=>`<article><small>IGRIŠČE ${Number(m.court)} · ${m.week?'VRSTICA':'TEKMA'} #${Number(m.id)}</small><p>${escapeHtml(m.a)} <span>proti</span> ${escapeHtml(m.b)}</p></article>`).join('')+'</div>';
+ $('upNext').innerHTML=slot===null?'':`<h2>Naslednje neodigrane · ${first.week?'teden '+Number(first.week):'termin '+slot}</h2><div class="nextGrid">`+next.map(m=>`<article><small>IGRIŠČE ${Number(m.court)}</small><p>${escapeHtml(m.a)} <span>proti</span> ${escapeHtml(m.b)}</p></article>`).join('')+'</div>';
  const selectedWeek=$('weekFilter').value,weeks=[...new Set(current.matches.map(m=>m.week).filter(Boolean))].sort((a,b)=>a-b);
  $('weekFilter').innerHTML='<option value="all">Vsi tedni</option>'+weeks.map(w=>`<option value="${w}">Teden ${w}</option>`).join('');
  if(weeks.includes(Number(selectedWeek)))$('weekFilter').value=selectedWeek;
@@ -54,7 +54,20 @@ async function refresh(){
  catch(e){$('connection').textContent='POVEZAVA NI USPELA';$('notice').textContent='Podatkov ni bilo mogoče osvežiti. '+e.message+' Preverite javni dostop namestitve. Prejšnji prikaz ostaja nespremenjen.';}
  finally{loading=false;}
 }
-$('settingsToggle').onclick=()=>{$('settings').hidden=!$('settings').hidden;};
+function lockSettings(){
+ $('settings').hidden=true;$('settingsToggle').textContent='🔒 Nastavitve';$('settingsToggle').setAttribute('aria-expanded','false');
+}
+$('settingsToggle').onclick=()=>{
+ if(!$('settings').hidden){lockSettings();return;}
+ $('unlockText').value='';$('unlockError').textContent='';$('unlockDialog').showModal();$('unlockText').focus();
+};
+$('unlockCancel').onclick=()=>$('unlockDialog').close();
+$('unlockForm').onsubmit=e=>{
+ e.preventDefault();
+ if($('unlockText').value.trim()!=='ODKLENI'){$('unlockError').textContent='Za odklep vpišite ODKLENI.';return;}
+ $('unlockDialog').close();$('settings').hidden=false;$('settingsToggle').textContent='🔒 Zakleni nastavitve';$('settingsToggle').setAttribute('aria-expanded','true');
+ $('endpoint').focus();
+};
 $('connect').onclick=()=>{try{endpoint=validEndpoint($('endpoint').value.trim());try{localStorage.setItem('cornhole-endpoint',endpoint);}catch{}const u=new URL(location.href);u.searchParams.set('source',endpoint);history.replaceState(null,'',u);$('settingsMessage').textContent='Povezava je shranjena v tem brskalniku. Povezavo v naslovni vrstici delite s prijatelji.';refresh();}catch(e){$('settingsMessage').textContent=e.message;}};
 $('demo').onclick=()=>{endpoint='';try{localStorage.removeItem('cornhole-endpoint');}catch{}const u=new URL(location.href);u.searchParams.delete('source');history.replaceState(null,'',u);render(example());$('updated').textContent='Primer prikaza';};
 $('generate').onclick=()=>{try{const players=$('names').value.split('\n').map(s=>s.trim()).filter(Boolean),courts=Number($('courts').value),mode=$('mode').value;const matches=Cornhole.schedule(players,courts,mode);endpoint='';render({title:'Preizkus razporeda',players,courts,mode,matches,local:true});$('updated').textContent='Lokalni preizkus';$('settingsMessage').textContent=`Ustvarjeno: ${matches.length} tekem oziroma prostih prehodov. Za vnos rezultatov uporabite preglednico.`;}catch(e){$('settingsMessage').textContent=e.message;}};
