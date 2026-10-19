@@ -38,6 +38,7 @@ function render(data){
  $('weekFilter').innerHTML='<option value="all">Vsi tedni</option>'+weeks.map(w=>`<option value="${w}">Teden ${w}</option>`).join('');
  if(weeks.includes(Number(selectedWeek)))$('weekFilter').value=selectedWeek;
  renderMatches();
+ CornholeStatistics.render(current);
 }
 function renderMatches(){
  if(!current)return;const filter=$('filter').value,week=$('weekFilter').value;let round=null;
@@ -74,7 +75,8 @@ $('generate').onclick=()=>{try{const players=$('names').value.split('\n').map(s=
 $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});};
 $('filter').onchange=renderMatches;
 $('weekFilter').onchange=renderMatches;
-document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button));$('ranking').hidden=button.dataset.tab!=='ranking';$('matches').hidden=button.dataset.tab!=='matches';});
+$('playerStatsSelect').onchange=()=>{if(current)CornholeStatistics.render(current);};
+document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button));$('ranking').hidden=button.dataset.tab!=='ranking';$('matches').hidden=button.dataset.tab!=='matches';$('statistics').hidden=button.dataset.tab!=='statistics';});
 $('names').value=example().players.join('\n');
 if(endpoint){$('connection').textContent='POVEZOVANJE …';refresh();}else render(window.CornholeSnapshot||example());
 setInterval(refresh,15000);
